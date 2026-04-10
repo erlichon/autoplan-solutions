@@ -22,10 +22,11 @@ cd "$tmpdir/repo"
     mv ../"$binary_name".rs src/bin/"$binary_name".rs
 
     # remove other junk
-    rm -r scripts
-    rm -r spec
-    rm -r tests
-    rm -r .vscode
+    rm -rf scripts
+    rm -rf spec
+    rm -rf tests
+    rm -rf .vscode
+    rm -rf docs
 
     # remove dev dependencies
     sed -i.bak '/\[dev-dependencies\]/,$d' Cargo.toml
