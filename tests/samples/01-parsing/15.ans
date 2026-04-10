@@ -1,0 +1,4 @@
+23 NegatedAtom colour(p1, red)
+50 Atom colour(p1, natural)
+69 Atom treatment(p1, untreated)
+70 Atom surface-condition(p1, smooth)

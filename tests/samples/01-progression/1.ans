@@ -1,0 +1,8 @@
+Atom on-table(b1)
+NegatedAtom clear(b2)
+Atom clear(b1)
+Atom on(b2, b2)
+Atom on-table(b1)
+Atom clear(b2)
+Atom clear(b1)
+Atom on-table(b2)

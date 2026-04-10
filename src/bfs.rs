@@ -1,18 +1,33 @@
+use std::collections::{HashSet, VecDeque};
+
 use super::sasplus::{SASPlus, State};
 
 impl SASPlus {
     pub fn bfs_shortest_length(&self, start_state: State) -> Option<usize> {
-        todo!();
-    }
-}
+        if self.is_goal(&start_state) {
+            return Some(0);
+        }
 
-#[cfg(test)]
-mod test_bfs {
+        let mut visited: HashSet<Vec<usize>> = HashSet::new();
+        visited.insert(start_state.values.clone());
 
-    //use crate::bfs:: ...
+        let mut queue: VecDeque<(State, usize)> = VecDeque::new();
+        queue.push_back((start_state, 0));
 
-    #[test]
-    fn test_placeholder() {
-        assert_eq!("this is a unit test", "to test your code incrementally");
+        while let Some((state, depth)) = queue.pop_front() {
+            for op in &self.operators {
+                if op.is_applicable(&state) {
+                    let new_state = op.apply(&state);
+                    if self.is_goal(&new_state) {
+                        return Some(depth + 1);
+                    }
+                    if visited.insert(new_state.values.clone()) {
+                        queue.push_back((new_state, depth + 1));
+                    }
+                }
+            }
+        }
+
+        None
     }
 }
