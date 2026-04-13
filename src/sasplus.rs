@@ -72,6 +72,75 @@ impl SASPlus {
     pub fn is_goal(&self, state: &State) -> bool {
         self.goal.iter().all(|&(var, val)| state.values[var] == val)
     }
+
+    pub fn h1(&self, state: &State) -> Option<usize> {
+        let mut cost: Vec<Vec<usize>> = self
+            .variables
+            .iter()
+            .enumerate()
+            .map(|(i, var)| {
+                (0..var.values.len())
+                    .map(|v| if state.values[i] == v { 0 } else { usize::MAX })
+                    .collect()
+            })
+            .collect();
+
+        loop {
+            let mut changed = false;
+            for op in &self.operators {
+                for eff in &op.effects {
+                    let precond_cost = Self::operator_effect_precond_cost(op, eff, &cost);
+                    if precond_cost == usize::MAX {
+                        continue;
+                    }
+                    let new_cost = op.cost.saturating_add(precond_cost);
+                    if new_cost < cost[eff.variable][eff.post_value] {
+                        cost[eff.variable][eff.post_value] = new_cost;
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        let mut h = 0usize;
+        for &(var, val) in &self.goal {
+            let c = cost[var][val];
+            if c == usize::MAX {
+                return None;
+            }
+            h = h.max(c);
+        }
+        Some(h)
+    }
+
+    fn operator_effect_precond_cost(op: &Operator, eff: &Effect, cost: &[Vec<usize>]) -> usize {
+        let mut max_cost = 0usize;
+        for &(var, val) in &op.prevail {
+            let c = cost[var][val];
+            if c == usize::MAX {
+                return usize::MAX;
+            }
+            max_cost = max_cost.max(c);
+        }
+        if eff.pre_value >= 0 {
+            let c = cost[eff.variable][eff.pre_value as usize];
+            if c == usize::MAX {
+                return usize::MAX;
+            }
+            max_cost = max_cost.max(c);
+        }
+        for &(var, val) in &eff.conditions {
+            let c = cost[var][val];
+            if c == usize::MAX {
+                return usize::MAX;
+            }
+            max_cost = max_cost.max(c);
+        }
+        max_cost
+    }
 }
 
 impl Display for SASPlus {
