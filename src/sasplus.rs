@@ -125,12 +125,14 @@ impl SASPlus {
             }
             max_cost = max_cost.max(c);
         }
-        if eff.pre_value >= 0 {
-            let c = cost[eff.variable][eff.pre_value as usize];
-            if c == usize::MAX {
-                return usize::MAX;
+        for e in &op.effects {
+            if e.pre_value >= 0 {
+                let c = cost[e.variable][e.pre_value as usize];
+                if c == usize::MAX {
+                    return usize::MAX;
+                }
+                max_cost = max_cost.max(c);
             }
-            max_cost = max_cost.max(c);
         }
         for &(var, val) in &eff.conditions {
             let c = cost[var][val];
