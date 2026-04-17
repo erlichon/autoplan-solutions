@@ -2,9 +2,9 @@ use super::sasplus::{SASPlus, State};
 
 /// Result of the h^FF heuristic computation.
 ///
-/// - `heuristic` is the h^FF heuristic value for the initial state (by the
-///   standard FF definition: the number of actions in the extracted relaxed
-///   plan).
+/// - `heuristic` is the h^FF heuristic value for the initial state, defined
+///   as the **cost** of the extracted relaxed plan (the sum of operator
+///   costs). Under unit-cost problems this equals the plan length.
 /// - `plan` is the list of operator indices (0-indexed into
 ///   `SASPlus::operators`) in layer order, low-to-high (i.e. an order that
 ///   is applicable under delete relaxation).
@@ -153,7 +153,11 @@ impl SASPlus {
         // forward-executable (under delete relaxation) ordering.
         plan.reverse();
 
-        let heuristic = plan.len();
+        // h^FF value = cost of the extracted relaxed plan.
+        let heuristic = plan
+            .iter()
+            .map(|&op_idx| self.operators[op_idx].cost)
+            .sum();
         Some(HFF { heuristic, plan })
     }
 

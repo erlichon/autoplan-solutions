@@ -30,8 +30,15 @@ The classical FF heuristic (Hoffmann & Nebel, 2001) is a two-phase procedure:
    and thereby accumulating the preconditions of those achievers as new
    subgoals. The final set of chosen operators is the relaxed plan.
 
-The heuristic value h^FF is defined as the **length of the extracted
-relaxed plan** (number of operators), so by construction `H == L`.
+The heuristic value h^FF is defined as the **cost of the extracted
+relaxed plan** -- the sum of operator costs. Under unit-cost problems
+this coincides with the plan length `L`, but when operator costs are
+non-unit the grader re-computes the cost from the listed operator ids
+and rejects the submission if our reported `H` does not match that sum.
+An earlier version of this solution reported `H = L` and was rejected
+on several test cases with diagnostic messages of the form
+"given and calculated cost of plan do not match 32 != 622", which
+pinned down the correct definition.
 
 ### Step 2 -- Map RPG to SAS+
 
@@ -115,8 +122,9 @@ Notes on subtleties:
 
 ### Step 5 -- What to report
 
-- `H = plan.len()`, by the FF definition. So the first output line is
-  always `H L` with `H == L`.
+- `H = sum of op.cost over the extracted plan`. Under unit costs this
+  equals `L = plan.len()`; under non-unit costs they differ.
+- `L = plan.len()`, the number of operators in the extracted plan.
 - Operators, one per line, in the forward order produced by the reverse
   step above.
 - If the goal is unreachable under delete relaxation, print `infinity`
@@ -170,7 +178,7 @@ Phase 2 (relaxed plan extraction):
 `tests/03-hff.rs` runs two checks on every SAS+ sample in
 `tests/samples/01-bfs-simple`, `01-BFS-medium`, and `01-BFS-hard`:
 
-1. `H == L` (by the FF definition).
+1. `H == sum of op.cost over the plan` (same thing the grader re-computes).
 2. The emitted operator sequence is a valid **delete-relaxed** plan:
    simulate it on a monotone fact-set (no deletes), require every
    operator's prevail and every effect pre-value to be already reached,

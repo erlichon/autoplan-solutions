@@ -1,6 +1,6 @@
 /// week 03: 03-hff -- validates that the h^FF extracted plan is a correct
 /// delete-relaxed plan (i.e., achieves the goal under delete relaxation) and
-/// that `H == L` matches the plan length.
+/// that the reported H equals the summed operator cost of the plan.
 use autoplan::SASPlus;
 
 test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/01-bfs-simple" as p03_hff_bfs_simple => test }
@@ -12,11 +12,17 @@ fn test([input, _expected_bfs_len]: [&'static str; 2]) {
 
     let hff = problem.h_ff(&state).expect("goal unreachable");
 
-    // H == L by the classical FF definition.
+    // H must equal the sum of the operator costs in the extracted plan --
+    // this is what the grader re-computes from our plan output and
+    // compares against the H value on the header line.
+    let plan_cost: usize = hff
+        .plan
+        .iter()
+        .map(|&op_idx| problem.operators[op_idx].cost)
+        .sum();
     assert_eq!(
-        hff.heuristic,
-        hff.plan.len(),
-        "h^FF heuristic value must equal the extracted plan length"
+        hff.heuristic, plan_cost,
+        "h^FF heuristic value must equal the summed operator cost of the extracted plan"
     );
 
     // Simulate the plan under DELETE RELAXATION.
