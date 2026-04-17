@@ -7,6 +7,20 @@ test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/01-bfs-s
 test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/01-BFS-medium" as p03_h2_bfs_medium => test_h2_vs_h1 }
 test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/01-BFS-hard" as p03_h2_bfs_hard => test_h2_vs_h1 }
 
+// Official sample packs for this problem -- the .ans is the expected
+// h^2 value, which is uniquely defined so we compare for exact equality.
+test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/03-H2-easy" as p03_h2_official_easy => test_h2_exact }
+test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/03-H2-hard" as p03_h2_official_hard => test_h2_exact }
+
+fn test_h2_exact([input, expected]: [&'static str; 2]) {
+    let (_, (problem, state)) = SASPlus::parse(input).expect("parse error");
+    let got = match problem.h2(&state) {
+        Some(h) => format!("{h}\n"),
+        None => "infinity\n".to_string(),
+    };
+    assert_eq!(expected, got);
+}
+
 fn test_h2_vs_h1([input, expected_bfs_len]: [&'static str; 2]) {
     let (_, (problem, state)) = SASPlus::parse(input).expect("parse error");
 

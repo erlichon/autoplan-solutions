@@ -7,6 +7,15 @@ test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/01-bfs-s
 test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/01-BFS-medium" as p03_hff_bfs_medium => test }
 test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/01-BFS-hard" as p03_hff_bfs_hard => test }
 
+// Official sample packs for the FF problem. The grader accepts any
+// reasonable relaxed plan, so we reuse the same plan-legality +
+// H == cost-sum validator rather than comparing strings against .ans.
+test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/03-FF-easy-1" as p03_hff_official_easy_1 => test }
+test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/03-FF-easy-2" as p03_hff_official_easy_2 => test }
+test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/03-FF-medium-1" as p03_hff_official_medium_1 => test }
+test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/03-FF-medium-2" as p03_hff_official_medium_2 => test }
+test_each_file::test_each_file! { for ["in", "ans"] in "./tests/samples/03-FF-hard" as p03_hff_official_hard => test }
+
 fn test([input, _expected_bfs_len]: [&'static str; 2]) {
     let (_, (problem, state)) = SASPlus::parse(input).expect("parse error");
 
