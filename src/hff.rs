@@ -1,33 +1,16 @@
 use super::sasplus::{SASPlus, State};
 
-/// Result of the h^FF heuristic computation.
-///
-/// - `heuristic` is the h^FF heuristic value for the initial state, defined
-///   as the **cost** of the extracted relaxed plan (the sum of operator
-///   costs). Under unit-cost problems this equals the plan length.
-/// - `plan` is the list of operator indices (0-indexed into
-///   `SASPlus::operators`) in layer order, low-to-high (i.e. an order that
-///   is applicable under delete relaxation).
 pub struct HFF {
+    /// Sum of operator costs in `plan` (the h^FF value).
     pub heuristic: usize,
+    /// Relaxed plan, applicable in order under delete relaxation.
     pub plan: Vec<usize>,
 }
 
 impl SASPlus {
-    /// Compute the h^FF heuristic and extract a delete-relaxed plan.
-    ///
+    /// Extract a delete-relaxed plan via Hoffmann & Nebel's FF heuristic.
     /// Returns `None` if the goal is unreachable under delete relaxation.
     pub fn h_ff(&self, state: &State) -> Option<HFF> {
-        // -----------------------------------------------------------------
-        // Phase 1: layered reachability (h^max-style levels + best achiever)
-        // -----------------------------------------------------------------
-        //
-        // level[v][d] = earliest layer at which fact (v, d) is achievable
-        //               (0 if true in the initial state, usize::MAX if not
-        //               yet known to be reachable).
-        // achiever[v][d] = (op_idx, eff_idx) that first achieved (v, d)
-        //                  at layer level[v][d]. None for facts that are
-        //                  true in the initial state.
         let mut level: Vec<Vec<usize>> = self
             .variables
             .iter()
@@ -72,17 +55,6 @@ impl SASPlus {
             }
         }
 
-        // -----------------------------------------------------------------
-        // Phase 2: relaxed-plan extraction (FF-style backward pass)
-        // -----------------------------------------------------------------
-        //
-        // Starting from goal facts at their layers, walk DOWN the layers.
-        // For each subgoal at layer t > 0, pick its recorded achiever and
-        // add that operator to the plan (once per operator). Enqueue the
-        // achiever's preconditions as new subgoals at their own layers.
-        // Facts with level 0 are already true in the initial state and
-        // need no achiever.
-
         let max_layer = self
             .goal
             .iter()
@@ -109,10 +81,6 @@ impl SASPlus {
         let mut used_op: Vec<bool> = vec![false; self.operators.len()];
 
         for t in (1..=max_layer).rev() {
-            // subgoals[t] may grow while we iterate (if some achiever's
-            // precondition happens to also sit at layer t-- which cannot
-            // happen in our h^max-style layering, but we still use index
-            // iteration to be robust).
             let mut idx = 0;
             while idx < subgoals[t].len() {
                 let (v, d) = subgoals[t][idx];
@@ -126,11 +94,6 @@ impl SASPlus {
                     used_op[op_idx] = true;
                 }
 
-                // Enqueue this achiever-effect's preconditions. As in
-                // `effect_precond_level`, the precondition for firing
-                // `eff_idx` is the union of the operator's prevail, every
-                // effect's pre-value (>=0), and this effect's conditional
-                // conditions.
                 let op = &self.operators[op_idx];
                 let eff = &op.effects[eff_idx];
 
@@ -149,11 +112,8 @@ impl SASPlus {
             }
         }
 
-        // We appended operators top-down (high layer first). Reverse to get a
-        // forward-executable (under delete relaxation) ordering.
         plan.reverse();
 
-        // h^FF value = cost of the extracted relaxed plan.
         let heuristic = plan
             .iter()
             .map(|&op_idx| self.operators[op_idx].cost)
@@ -161,14 +121,6 @@ impl SASPlus {
         Some(HFF { heuristic, plan })
     }
 
-    /// Max of the levels of an effect's preconditions. An effect of an
-    /// operator can only fire when the whole operator is applicable, so the
-    /// precondition for firing effect `e` is the union of:
-    ///   * all prevail conditions of the operator,
-    ///   * the pre-value of **every** effect of the operator that has
-    ///     `pre_value >= 0` (SAS+ operator applicability as a whole),
-    ///   * the conditional-effect conditions of `e` itself.
-    /// Returns `None` if any of these facts is still unreachable.
     fn effect_precond_level(
         op: &super::sasplus::Operator,
         eff: &super::sasplus::Effect,
@@ -181,6 +133,7 @@ impl SASPlus {
                 l => m = m.max(l),
             }
         }
+        // Operator applicability needs every effect's pre-value, not just this one.
         for e in &op.effects {
             if e.pre_value >= 0 {
                 let d = e.pre_value as usize;
