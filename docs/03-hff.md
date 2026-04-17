@@ -175,8 +175,10 @@ Phase 2 (relaxed plan extraction):
 
 ## Verification
 
-`tests/03-hff.rs` runs two checks on every SAS+ sample in
-`tests/samples/01-bfs-simple`, `01-BFS-medium`, and `01-BFS-hard`:
+`tests/03-hff.rs` runs two checks on every SAS+ sample in the local
+sample tree (`01-bfs-simple`, `01-BFS-medium`, `01-BFS-hard`, plus the
+official `03-FF-easy-1`, `03-FF-easy-2`, `03-FF-medium-1`,
+`03-FF-medium-2`, `03-FF-hard`):
 
 1. `H == sum of op.cost over the plan` (same thing the grader re-computes).
 2. The emitted operator sequence is a valid **delete-relaxed** plan:
@@ -185,21 +187,28 @@ Phase 2 (relaxed plan extraction):
    then mark every (conditional-condition-satisfied) post-value as
    reached. Finally, assert that every goal fact is reached.
 
-All 12 test cases pass.
+All 29 cases pass. On the problem's sample input (identical to
+`01-bfs-simple/1.in`) the output is `3 3 / 3 / 0 / 1` -- `up f0 f1`,
+`board f1 p0`, `depart f0 p0`, a length-3 relaxed plan for `served(p0)`.
 
-On the problem's sample input (the miconic-style lift problem identical to
-`tests/samples/01-bfs-simple/1.in`), our output matches the expected
-sample exactly:
+## Failing runs that pinned down `H = cost`
 
-```
-3 3
-3
-0
-1
-```
+The cost-aware reading from Step 1 is important: the first submission
+(which reported `H = L`) failed on four non-unit-cost runs where the
+grader re-computes the plan cost and rejects on mismatch. The
+diagnostics were:
 
-i.e. `up f0 f1`, `board f1 p0`, `depart f0 p0` -- a length-3 relaxed plan
-that reaches `served(p0)`.
+| run | our `H L` | grader "cost" | sample file |
+|-----|-----------|---------------|-------------|
+| 2   | `32 32`   | 622           | `03-FF-easy-2/2.in` (302k-line input) |
+| 6   | `11 11`   | 1             | `03-FF-easy-2/6.in` (several cost-0 ops) |
+| 7   | `18 18`   | 45            | `03-FF-easy-2/7.in` |
+| 8   | `56 56`   | 2908401       | `03-FF-easy-2/8.in` (wildly non-unit costs) |
+
+After the fix (`H = sum(op.cost)` across the extracted plan), each of
+those four sample files produces the expected header line directly
+(`622 32`, `1 11`, `45 18`, `2908401 56`) and the `.ans` files under
+`tests/samples/03-FF-easy-2/` correspond.
 
 ## Running
 
