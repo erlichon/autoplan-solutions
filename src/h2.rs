@@ -1,7 +1,7 @@
 use super::sasplus::{SASPlus, State};
 
 impl SASPlus {
-    /// h^2 heuristic (Haslum & Geffner). Fixed-point regression over a
+    /// h^2 heuristic. Fixed-point regression over a
     /// symmetric table `cost[f1][f2]` of fact-pair reachability costs.
     /// Returns `None` if the goal is unreachable.
     pub fn h2(&self, state: &State) -> Option<usize> {

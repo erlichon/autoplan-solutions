@@ -8,7 +8,7 @@ pub struct HFF {
 }
 
 impl SASPlus {
-    /// Extract a delete-relaxed plan via Hoffmann & Nebel's FF heuristic.
+    /// Extract a delete-relaxed plan via FF heuristic.
     /// Returns `None` if the goal is unreachable under delete relaxation.
     pub fn h_ff(&self, state: &State) -> Option<HFF> {
         let mut level: Vec<Vec<usize>> = self
