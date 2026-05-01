@@ -2,7 +2,9 @@
 mod bfs;
 mod h2;
 mod hff;
+mod pdb;
 mod sasplus;
 
 pub use hff::HFF;
+pub use pdb::PDBResult;
 pub use sasplus::SASPlus;
