@@ -1,0 +1,7 @@
+(open a b)
+(open a c)
+(drive a b)
+(clean b)
+(drive b a)
+(drive a c)
+(clean c)
