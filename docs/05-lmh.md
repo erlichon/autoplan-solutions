@@ -14,68 +14,94 @@ value of the canonical landmark heuristic h^C.
 
 ## Chain of Thought
 
-### Step 1 -- Understand the canonical landmark heuristic
+### Step 1 -- Understand disjunctive action landmarks
 
-Each disjunctive action landmark L_i says "at least one action from L_i must
-appear in any plan." The simplest lower bound assigns each landmark the cost
-of its cheapest action: h = Σ min_{a ∈ L_i} cost(a). But this double-counts
-cost when an action appears in multiple landmarks.
+A disjunctive action landmark L = {a_1, ..., a_k} says "every valid plan
+must contain at least one of these actions." The cheapest way to satisfy
+L costs min_{a in L} cost(a).
 
-The *canonical* landmark heuristic resolves this by **optimally partitioning**
-each action's cost across the landmarks it participates in. If action a has
-cost c(a) and appears in landmarks i_1, ..., i_k, we split c(a) into
-non-negative shares summing to at most c(a), then the "value" of landmark
-L_i is the minimum share assigned to any of its actions.
+### Step 2 -- Additivity and the canonical heuristic
 
-### Step 2 -- LP formulation
-
-This directly yields a linear program:
+Two landmarks are *additive* if they share no action -- satisfying one
+cannot help satisfy the other, so their costs can be summed safely. The
+canonical landmark heuristic h^C finds the maximum-weight set of pairwise
+additive landmarks:
 
 ```
-maximize   Σ_i  x_i
-subject to Σ_{i : a ∈ L_i}  x_i  ≤  cost(a)   for each action a
-           x_i ≥ 0
+h^C = max over all pairwise-additive subsets S of landmarks:
+        sum_{L_i in S}  min_{a in L_i} cost(a)
 ```
 
-Variable x_i represents the contribution of landmark i to the heuristic.
-Each constraint says the total cost drawn from a single action does not
-exceed its actual cost. The objective sums all landmark contributions.
+This is equivalent to Maximum Weight Independent Set (MWIS) on the
+*conflict graph*, where two landmarks are connected iff they share an
+action.
 
-### Step 3 -- Why simplex?
+### Step 3 -- Why not LP?
 
-The LP has N variables (one per landmark) and M constraints (one per unique
-action across all landmarks). In the samples, N ≤ 16 and M ≤ ~1000, so the
-full-tableau simplex method terminates quickly. An initial basic feasible
-solution is trivially available by setting all x_i = 0 and using the slack
-variables as the basis.
+An earlier attempt used LP-based optimal cost partitioning, which
+computes an upper bound >= h^C. The LP can yield non-integer or strictly
+higher values (e.g. three pairwise-conflicting unit-cost landmarks give
+LP = 1.5 but h^C = 1). The problem asks for h^C specifically.
 
-### Step 4 -- Implementation
+### Step 4 -- Efficient MWIS via connected components
 
-1. Parse the landmark section after the SAS+ file.
-2. Build the constraint matrix A (M × N, entries 0/1) and the RHS vector b
-   (operator costs).
-3. Run primal simplex on the resulting LP.
-4. Round the optimal value to the nearest integer (the LP with integer costs
-   and a 0/1 constraint matrix produces rational optima that happen to be
-   integer for the given test instances).
+MWIS is NP-hard in general, but the conflict graph typically decomposes
+into small connected components (landmarks from different parts of the
+planning task rarely share actions). The algorithm:
 
-### Rounding
+1. Build the conflict graph.
+2. Find connected components (BFS).
+3. For each component independently, solve MWIS:
+   - k <= 30: bitmask DP in O(2^k) time.
+   - k > 30: branch-and-bound with pruning (upper bound = sum of all
+     remaining non-excluded values).
+4. Sum the per-component MWIS values.
 
-The output is a single integer. In all provided samples the LP optimum is
-exact to within floating-point tolerance; a simple `(val + 0.5) as usize`
-is sufficient.
+### Step 5 -- Metric handling
+
+SAS+ files with `metric=0` use unit cost (all operators cost 1),
+regardless of the raw cost field in each operator. The parser normalises
+costs to 1 when `metric=0`, so heuristic code always uses `op.cost`
+directly.
+
+## Algorithm
+
+```
+values[i] = min cost of any action in landmark i
+
+conflict[i][j] = true iff landmarks i and j share at least one action
+
+components = connected components of the conflict graph
+
+for each component C:
+  if |C| == 1: total += values[C[0]]
+  else:
+    remap to local indices [0..k)
+    if k <= 30: bitmask DP
+      dp[mask] = max( dp[mask without v],
+                      values[v] + dp[mask without v and without neighbors(v)] )
+      where v = lowest set bit of mask
+    else: branch-and-bound with sum-of-remaining pruning
+
+return total
+```
 
 ## Verification
 
 - All 11 LMH-easy samples pass with exact integer match.
 - The 1 LMH-hard sample passes with exact integer match.
-
-## Submission
-
-Binary: `src/bin/05-lmh.rs` compiled as `05-lmh`.
+- Synthetic test cases confirm h^C (MWIS) != LP for conflicting
+  landmarks (e.g. three pairwise-conflicting unit-cost landmarks:
+  h^C = 1, LP = 1.5).
 
 ## Running Tests Locally
 
 ```bash
 cargo test --test 05-lmh
+```
+
+## Submission
+
+```bash
+scripts/prepare.sh 05-lmh
 ```

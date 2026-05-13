@@ -129,7 +129,7 @@ impl SASPlus {
 
         // Metric section
         let (s, _) = terminated(tag("begin_metric"), line_ending).parse(s)?;
-        let (s, _) = int_line(s)?;
+        let (s, metric) = int_line(s)?;
         let (s, _) = terminated(tag("end_metric"), line_ending).parse(s)?;
 
         // Variables section
@@ -156,7 +156,14 @@ impl SASPlus {
 
         // Operator section
         let (s, num_operators) = int_line(s)?;
-        let (s, operators) = count(parse_operator, num_operators as usize).parse(s)?;
+        let (s, mut operators) = count(parse_operator, num_operators as usize).parse(s)?;
+
+        // metric=0 means unit cost: override all operator costs to 1.
+        if metric == 0 {
+            for op in &mut operators {
+                op.cost = 1;
+            }
+        }
 
         // Axiom section
         let (s, num_axioms) = int_line(s)?;
