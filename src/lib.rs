@@ -2,9 +2,11 @@
 mod bfs;
 mod h2;
 mod hff;
+mod lmh;
 mod pdb;
 mod sasplus;
 
 pub use hff::HFF;
+pub use lmh::{canonical_lm_heuristic, parse_landmarks};
 pub use pdb::PDBResult;
 pub use sasplus::SASPlus;
