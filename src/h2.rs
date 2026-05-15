@@ -188,7 +188,6 @@ fn precompute_op(
     for &(v, d) in &op.prevail {
         op_pre.push(fid(v, d));
     }
-    // prevail + every effect's pre-value (same as h1/hff).
     for e in &op.effects {
         if e.pre_value >= 0 {
             op_pre.push(fid(e.variable, e.pre_value as usize));
@@ -198,7 +197,9 @@ fn precompute_op(
 
     let mut assigned = vec![false; n];
     for e in &op.effects {
-        assigned[e.variable] = true;
+        if e.conditions.is_empty() {
+            assigned[e.variable] = true;
+        }
     }
 
     let effs: Vec<EffPc> = op
