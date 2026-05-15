@@ -4,6 +4,7 @@ const INF: usize = usize::MAX;
 
 struct EffPc {
     p1: usize,
+    var: usize,
     pre_base: Vec<usize>,
     /// required[v] = Some(d) iff pre_base forces variable v to value d.
     required: Vec<Option<usize>>,
@@ -105,7 +106,7 @@ impl SASPlus {
                     }
 
                     for v in 0..n {
-                        if opc.assigned[v] {
+                        if v == ed.var || opc.assigned[v] {
                             continue;
                         }
                         match ed.required[v] {
@@ -220,6 +221,7 @@ fn precompute_op(
             }
             EffPc {
                 p1,
+                var: e.variable,
                 pre_base,
                 required,
                 consistent,

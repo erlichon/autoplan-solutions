@@ -83,11 +83,106 @@ sort output lines lexicographically
 Complexity: O(h^2_fixpoint + F^2 * D_max^2) where F is the total number
 of facts and D_max the largest domain size. The h^2 fixed-point dominates.
 
-## Verification
+## Bug: Conditional Effects and the `assigned` Vector
 
-- All 5 invar-easy samples pass with exact string match.
-- The 1 invar-hard sample passes with exact string match.
-- The 21 existing h^2 tests still pass after the refactoring.
+### Symptom
+
+All local samples passed (5 easy, 1 hard), and DOMjudge's sample runs
+showed "correct", yet the overall submission received `wrong-answer`.
+
+### Investigation
+
+1. **Cross-validation with Python reference.** Wrote an independent
+   Python h^2 implementation mirroring the Rust code. Both agreed on all
+   samples and 200 random SAS+ files -- so the bug was not in the
+   invariant extraction logic.
+
+2. **BFS ground-truth checker.** Built a script that performs BFS on the
+   full state space to discover every truly reachable fact pair, then
+   compares against h^2's reachability claims. Over 300 random problems
+   it found cases where h^2 declared a pair unreachable (`cost = INF`)
+   even though BFS reached it. This violates admissibility and produces
+   spurious invariants.
+
+3. **Tracing a minimal counterexample (seed 3).** An operator had three
+   effects: two unconditional (on var0 and var2) and one conditional (on
+   var1, conditioned on var2=0). When var2 != 0, the conditional effect
+   does not fire and var1's value is preserved. The path
+   `(0,1,2) -> op2 -> (0,2,2) -> op7 -> (1,2,2)` reaches (var0=1,
+   var1=2), but h^2 claimed this pair was unreachable.
+
+### Root Cause
+
+Two issues in `precompute_op` in `h2.rs`:
+
+1. **`assigned[v]` was set for ALL effects, including conditional.**
+   The h^2 regression skips "assigned" variables in the frame loop
+   (they are handled by PairPc instead). But when a conditional effect's
+   conditions aren't met, the variable's value *is preserved* -- it
+   behaves as a frame variable. Marking it assigned prevented h^2 from
+   considering this case, causing it to miss reachable pairs.
+
+2. **`op_pre` excluded conditional effects' `pre_value`s.** An earlier
+   fix had moved conditional effects' `pre_value`s out of `op_pre` and
+   into per-effect `pre_base`. But in standard SAS+ semantics, ALL
+   effects' `pre_value`s are global operator preconditions (the operator
+   is only applicable when they hold, regardless of whether conditions
+   are met).
+
+### Fix (two parts)
+
+**Part 1 -- frame loop and assigned vector:**
+
+```rust
+// op_pre: include ALL effects' pre_values (standard SAS+ semantics)
+for e in &op.effects {
+    if e.pre_value >= 0 {
+        op_pre.push(fid(e.variable, e.pre_value as usize));
+    }
+}
+
+// assigned: only variables with UNCONDITIONAL effects
+for e in &op.effects {
+    if e.conditions.is_empty() {
+        assigned[e.variable] = true;
+    }
+}
+```
+
+This correctly handles both scenarios for a conditional effect on
+variable v:
+- **Effect fires** (conditions met): captured by PairPc between effects.
+- **Effect does not fire** (conditions not met): v is a frame variable,
+  captured by the frame loop since `assigned[v] = false`.
+
+**Part 2 -- skip effect's own variable in frame loop:**
+
+The Part 1 fix alone introduced a subtle secondary bug: when a
+conditional effect on variable v has `assigned[v] = false`, the frame
+loop iterates over v itself. This pairs `fid(v, post)` with
+`fid(v, pre)` -- a *same-variable* pair that must always be INF (a
+variable can't hold two values). Setting it finite causes missed `--`
+invariants.
+
+The effect's own variable must always be excluded from the frame loop
+regardless of the `assigned` vector, because the effect firing (producing
+`p1 = post`) and the variable being preserved (frame case) are
+contradictory for the same variable.
+
+```rust
+// In the frame loop for each EffPc:
+for v in 0..n {
+    if v == ed.var || opc.assigned[v] { continue; }
+    // ...
+}
+```
+
+### Verification After Fix
+
+- All 6 local samples pass.
+- All 21 h^2 heuristic tests pass (no regression).
+- 500-seed stress test: 0 same-variable pair violations, 0 Rust-vs-Python
+  mismatches.
 
 ## Running Tests Locally
 
