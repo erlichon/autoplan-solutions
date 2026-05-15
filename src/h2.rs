@@ -24,11 +24,20 @@ struct OpPc {
     pairs: Vec<PairPc>,
 }
 
+/// The h^2 cost table and fact-ID layout.
+pub struct H2Table {
+    /// `cost[f1][f2]` = estimated cost to reach a state where both facts
+    /// hold simultaneously.  `usize::MAX` means unreachable.
+    pub cost: Vec<Vec<usize>>,
+    /// `offset[v]` is the first fact ID for variable `v`.
+    /// Fact (v, d) has ID `offset[v] + d`.  `offset[n]` = total number of facts.
+    pub offset: Vec<usize>,
+}
+
 impl SASPlus {
-    /// h^2 heuristic (Haslum & Geffner). Fixed-point regression over a
-    /// symmetric table `cost[f1][f2]` of fact-pair reachability costs.
-    /// Returns `None` if the goal is unreachable.
-    pub fn h2(&self, state: &State) -> Option<usize> {
+    /// Compute the full h^2 cost table via Haslum-Geffner fixed-point
+    /// regression.
+    pub fn h2_cost_table(&self, state: &State) -> H2Table {
         let n = self.variables.len();
 
         let mut offset = vec![0usize; n + 1];
@@ -101,7 +110,6 @@ impl SASPlus {
                         }
                         match ed.required[v] {
                             Some(d) => {
-                                // (v, d) already in pre_base, so h^2 is unchanged.
                                 let p2 = fid(v, d);
                                 if new_single < cost[ed.p1][p2] {
                                     cost[ed.p1][p2] = new_single;
@@ -116,8 +124,6 @@ impl SASPlus {
                                     if self_c == INF {
                                         continue;
                                     }
-                                    // h^2(pre_base ∪ {p2}) = max over pairs
-                                    // involving p2 and base_h.
                                     let mut m = if self_c > base_h { self_c } else { base_h };
                                     let mut any_inf = false;
                                     for &f in &ed.pre_base {
@@ -151,8 +157,20 @@ impl SASPlus {
             }
         }
 
-        let goal_facts: Vec<usize> = self.goal.iter().map(|&(v, d)| fid(v, d)).collect();
-        let h = h2_of_set(&goal_facts, &cost);
+        H2Table { cost, offset }
+    }
+
+    /// h^2 heuristic (Haslum & Geffner). Fixed-point regression over a
+    /// symmetric table `cost[f1][f2]` of fact-pair reachability costs.
+    /// Returns `None` if the goal is unreachable.
+    pub fn h2(&self, state: &State) -> Option<usize> {
+        let table = self.h2_cost_table(state);
+        let goal_facts: Vec<usize> = self
+            .goal
+            .iter()
+            .map(|&(v, d)| table.offset[v] + d)
+            .collect();
+        let h = h2_of_set(&goal_facts, &table.cost);
         if h == INF { None } else { Some(h) }
     }
 }
