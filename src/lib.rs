@@ -3,6 +3,7 @@ mod bfs;
 mod h2;
 mod hff;
 mod invar;
+mod lmcut;
 mod lmh;
 mod pdb;
 mod sasplus;

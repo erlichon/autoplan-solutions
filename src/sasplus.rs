@@ -74,40 +74,19 @@ impl SASPlus {
     }
 
     pub fn h1(&self, state: &State) -> Option<usize> {
-        let mut cost: Vec<Vec<usize>> = self
-            .variables
-            .iter()
-            .enumerate()
-            .map(|(i, var)| {
-                (0..var.values.len())
-                    .map(|v| if state.values[i] == v { 0 } else { usize::MAX })
-                    .collect()
-            })
-            .collect();
-
-        loop {
-            let mut changed = false;
-            for op in &self.operators {
-                for eff in &op.effects {
-                    let precond_cost = Self::operator_effect_precond_cost(op, eff, &cost);
-                    if precond_cost == usize::MAX {
-                        continue;
-                    }
-                    let new_cost = op.cost.saturating_add(precond_cost);
-                    if new_cost < cost[eff.variable][eff.post_value] {
-                        cost[eff.variable][eff.post_value] = new_cost;
-                        changed = true;
-                    }
-                }
-            }
-            if !changed {
-                break;
-            }
+        let nv = self.variables.len();
+        let mut offset = vec![0usize; nv + 1];
+        for i in 0..nv {
+            offset[i + 1] = offset[i] + self.variables[i].values.len();
         }
+        let nf = offset[nv];
+        let costs: Vec<usize> = self.operators.iter().map(|o| o.cost).collect();
+        let mut hmax = vec![0usize; nf];
+        self.hmax_into(state, &costs, &offset, &mut hmax);
 
         let mut h = 0usize;
         for &(var, val) in &self.goal {
-            let c = cost[var][val];
+            let c = hmax[offset[var] + val];
             if c == usize::MAX {
                 return None;
             }
@@ -116,32 +95,81 @@ impl SASPlus {
         Some(h)
     }
 
-    fn operator_effect_precond_cost(op: &Operator, eff: &Effect, cost: &[Vec<usize>]) -> usize {
-        let mut max_cost = 0usize;
-        for &(var, val) in &op.prevail {
-            let c = cost[var][val];
+    /// Bellman-Ford h^max with custom per-operator costs, writing into a
+    /// flat fact-ID array indexed by `offset[var] + val`.
+    pub(crate) fn hmax_into(
+        &self,
+        state: &State,
+        costs: &[usize],
+        offset: &[usize],
+        hmax: &mut [usize],
+    ) {
+        for h in hmax.iter_mut() {
+            *h = usize::MAX;
+        }
+        for (v, _) in self.variables.iter().enumerate() {
+            hmax[offset[v] + state.values[v]] = 0;
+        }
+
+        loop {
+            let mut changed = false;
+            for (op_idx, op) in self.operators.iter().enumerate() {
+                for eff in &op.effects {
+                    let pre_max = Self::flat_precond_cost(op, eff, hmax, offset);
+                    if pre_max == usize::MAX {
+                        continue;
+                    }
+                    let new_cost = costs[op_idx].saturating_add(pre_max);
+                    let fid = offset[eff.variable] + eff.post_value;
+                    if new_cost < hmax[fid] {
+                        hmax[fid] = new_cost;
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+    }
+
+    fn flat_precond_cost(
+        op: &Operator,
+        eff: &Effect,
+        hmax: &[usize],
+        offset: &[usize],
+    ) -> usize {
+        let mut m = 0usize;
+        for &(v, d) in &op.prevail {
+            let c = hmax[offset[v] + d];
             if c == usize::MAX {
                 return usize::MAX;
             }
-            max_cost = max_cost.max(c);
+            if c > m {
+                m = c;
+            }
         }
         for e in &op.effects {
             if e.pre_value >= 0 {
-                let c = cost[e.variable][e.pre_value as usize];
+                let c = hmax[offset[e.variable] + e.pre_value as usize];
                 if c == usize::MAX {
                     return usize::MAX;
                 }
-                max_cost = max_cost.max(c);
+                if c > m {
+                    m = c;
+                }
             }
         }
-        for &(var, val) in &eff.conditions {
-            let c = cost[var][val];
+        for &(v, d) in &eff.conditions {
+            let c = hmax[offset[v] + d];
             if c == usize::MAX {
                 return usize::MAX;
             }
-            max_cost = max_cost.max(c);
+            if c > m {
+                m = c;
+            }
         }
-        max_cost
+        m
     }
 }
 
